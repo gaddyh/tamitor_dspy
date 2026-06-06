@@ -1,0 +1,68 @@
+[
+  {
+    "split": "train",
+    "rows": 72,
+    "behavior": {
+      "tool_call": 12,
+      "clarify": 54,
+      "handoff": 6
+    },
+    "tool_or_behavior": {
+      "book_appointment": 3,
+      "clarify": 54,
+      "reschedule_appointment": 3,
+      "cancel_appointment": 3,
+      "answer_faq": 3,
+      "handoff": 6
+    },
+    "scenario_type": {
+      "complete_tool_call": 15,
+      "missing_args": 57
+    },
+    "anchors": 24
+  },
+  {
+    "split": "dev",
+    "rows": 24,
+    "behavior": {
+      "tool_call": 4,
+      "clarify": 18,
+      "handoff": 2
+    },
+    "tool_or_behavior": {
+      "book_appointment": 1,
+      "clarify": 18,
+      "reschedule_appointment": 1,
+      "cancel_appointment": 1,
+      "answer_faq": 1,
+      "handoff": 2
+    },
+    "scenario_type": {
+      "complete_tool_call": 5,
+      "missing_args": 19
+    },
+    "anchors": 24
+  },
+  {
+    "split": "test",
+    "rows": 48,
+    "behavior": {
+      "tool_call": 8,
+      "clarify": 36,
+      "handoff": 4
+    },
+    "tool_or_behavior": {
+      "book_appointment": 2,
+      "clarify": 36,
+      "reschedule_appointment": 2,
+      "cancel_appointment": 2,
+      "answer_faq": 2,
+      "handoff": 4
+    },
+    "scenario_type": {
+      "complete_tool_call": 10,
+      "missing_args": 38
+    },
+    "anchors": 24
+  }
+]

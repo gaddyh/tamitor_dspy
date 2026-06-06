@@ -1,6 +1,7 @@
 # scripts/generate_seed_examples.py
 
 import dspy
+from pathlib import Path
 
 from src.tamitor_dspy.tools.registry import tool_registry
 from src.tamitor_dspy.datasets.scenario_spec import generate_tool_arg_scenarios
@@ -19,17 +20,11 @@ def main():
         max_missing_args=2,
     )
 
-    generator = ValidatedScenarioMessageGenerator(max_attempts=3)
-
-    examples = []
-
-    for scenario in scenarios:
-        example = generator(scenario)
-        examples.append(example)
-        print(example.model_dump_json(ensure_ascii=False))
-
-    return examples
+    current_path = Path(__file__).parent
+    open(current_path / "scenarios.jsonl", "w").write("\n".join([scenario.model_dump_json() for scenario in scenarios]))
+    return scenarios
 
 
 if __name__ == "__main__":
-    main()
+    scenarios = main()
+    print(scenarios)

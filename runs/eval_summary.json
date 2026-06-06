@@ -1,0 +1,11 @@
+{
+  "num_rows": 15,
+  "avg_score": 0.9666666666666667,
+  "behavior_accuracy": 1.0,
+  "tool_accuracy": 1.0,
+  "args_accuracy": 0.9333333333333333,
+  "missing_fields_accuracy": 0.8666666666666667,
+  "forbidden_tool_rate": 0.0,
+  "forbidden_arg_rate": 0.0,
+  "avg_duration_ms": 5078.965405467898
+}

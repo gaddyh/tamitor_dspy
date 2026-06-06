@@ -1,12 +1,16 @@
 
 from typing import Any
 
-from src.tamitor_dspy.datasets.scenario_spec import ToolSpec
+from src.tamitor_dspy.models.scenario_spec import ToolSpec
 
 tool_registry = [
     ToolSpec(
         name="book_appointment",
         required_args=["service", "date", "time", "customer_name"],
+    ),
+    ToolSpec(
+        name="get_active_bookings",
+        required_args=["customer_name"],
     ),
     ToolSpec(
         name="reschedule_appointment",
@@ -40,6 +44,7 @@ def extract_tool_calls_from_trajectory(trajectory: dict[str, Any]) -> list[dict[
 
         for tool_name in [
             "book_appointment",
+            "get_active_bookings",
             "reschedule_appointment",
             "cancel_appointment",
             "answer_faq",

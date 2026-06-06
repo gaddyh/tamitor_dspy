@@ -1,75 +1,118 @@
 import dspy
-import uuid
-from pydantic import BaseModel
 from typing import Any
-from src.tamitor_dspy.agents.schemas import DatasetExample
-from src.tamitor_dspy.tools.registry import extract_tool_calls_from_trajectory
-from src.tamitor_dspy.datasets.seed_examples import SEED_EXAMPLES
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
+from data.schemas.seed_examples import DatasetExample
+from src.tamitor_dspy.tools.impl import (
+    book_appointment,
+    reschedule_appointment,
+    cancel_appointment,
+    answer_faq,
+)
+from src.tamitor_dspy.agents.signatures import TamiTorReAct
+from src.tamitor_dspy.evals.evaluator import evaluate_example
+
 
 lm = dspy.LM("openai/gpt-5.4-mini")
-
 dspy.configure(lm=lm)
 
-def book_appointment(service:str, date:str, time:str, customer_name:str):
-    guid = uuid.uuid4()
-    res = f"Appointment booked with id {guid} for {customer_name or '--missing name--'} for {service or '--missing service--'} on {date or '--missing date--'} at {time or '--missing time--'}"
-    print(res)
-    return res
 
-def reschedule_appointment(appointment_id:str, date:str, time:str):
-    res = f"Appointment {appointment_id} rescheduled to {date} at {time}"
-    print(res)
-    return res
+agent = dspy.ReAct(
+    TamiTorReAct,
+    tools=[
+        book_appointment,
+        reschedule_appointment,
+        cancel_appointment,
+        answer_faq,
+    ],
+)
 
-def cancel_appointment(appointment_id:str):
-    res = f"Appointment {appointment_id} cancelled"
-    print(res)
-    return res
 
-def answer_faq(topic:str):
-    res = f"FAQ answer for {topic}"
-    print(res)
-    return res
+def run_baseline(agent, examples: list[DatasetExample]) -> list[dict[str, Any]]:
+    results = []
 
-class AgentRun(BaseModel):
-    response: str
-    called_tools: list[dict[str, Any]]
-    raw_trajectory: dict[str, Any]
+    for example in examples:
+        result = evaluate_example(agent, example)
+        results.append(result)
 
-def run_agent_on_example(agent, example: DatasetExample) -> AgentRun:
-    result = agent(
-        request=example.request,
-        context=example.context,
+    return results
+
+
+def print_results_table(results: list[dict[str, Any]]) -> None:
+    console = Console()
+
+    table = Table(
+        title="TamiTor DSPy ReAct Baseline Results",
+        box=box.ROUNDED,
+        show_lines=True,
     )
 
-    called_tools = extract_tool_calls_from_trajectory(result.trajectory)
+    table.add_column("ID", style="bold", no_wrap=True)
+    table.add_column("Category", no_wrap=True)
+    table.add_column("Request", overflow="fold")
+    table.add_column("Expected", no_wrap=True)
+    table.add_column("Called Tools", overflow="fold")
+    table.add_column("Response", overflow="fold")
+    table.add_column("Tool", justify="center")
+    table.add_column("Forbidden", justify="center")
+    table.add_column("Clarify", justify="center")
 
-    return AgentRun(
-        response=result.response,
-        called_tools=called_tools,
-        raw_trajectory=result.trajectory,
-    )
+    for result in results:
+        called_tools = result.get("called_tools", [])
 
-class TamiTorReAct(dspy.Signature):
-    request: str = dspy.InputField(desc="The user request to classify")
-    context: str = dspy.InputField(desc="The context of the user request")
-    response: str = dspy.OutputField(desc="The response to the user request")
+        called_tools_text = "\n".join(
+            call.get("tool_name", str(call))
+            for call in called_tools
+        ) or "-"
 
-TamiTorReAct = TamiTorReAct.with_instructions(
-    f"""You are a helpful booking assistant. You help my client schedule and manage appointments.
-    """
-) 
+        expected_tool = result.get("expected_tool")
+        expected_behavior = result.get("expected_behavior")
+
+        expected_text = (
+            f"{expected_behavior}"
+            + (f"\n{expected_tool}" if expected_tool else "")
+        )
+
+        table.add_row(
+            result.get("id", ""),
+            result.get("category", ""),
+            result.get("request", ""),
+            expected_text,
+            called_tools_text,
+            result.get("response", ""),
+            score_cell(result.get("tool_selection_score")),
+            violation_cell(result.get("forbidden_tool_violation")),
+            score_cell(result.get("clarification_score")),
+        )
+
+    console.print(table)
 
 
-agent = dspy.ReAct(TamiTorReAct, tools=[book_appointment, reschedule_appointment, cancel_appointment, answer_faq])
-#result = agent(request="Book an appointment for a haircut tomorrow at 3pm", context="user_name=John")
-#print(result.response)
-#for step, value in result.trajectory.items():
-#    print(f"{step}: {value}")
+def score_cell(score: float | int | None) -> str:
+    if score is None:
+        return "-"
+
+    return "✅" if float(score) == 1.0 else "❌"
 
 
+def violation_cell(value: float | int | None) -> str:
+    if value is None:
+        return "-"
 
+    return "❌" if float(value) == 1.0 else "✅"
 
-for example in SEED_EXAMPLES[2:3]:
-    run = run_agent_on_example(agent, example)
-    print(run)
+def load_test_examples(path: str) -> list[DatasetExample]:
+    import json
+    with open(path, "r") as f:
+        return [DatasetExample(**json.loads(line)) for line in f]
+
+if __name__ == "__main__":
+    path = "data/splits/test.jsonl"
+    test_examples = load_test_examples(path)
+    
+    results = run_baseline(agent, test_examples)
+    print(results)
+    # results = run_baseline(agent, SEED_EXAMPLES)
+    print_results_table(results)
