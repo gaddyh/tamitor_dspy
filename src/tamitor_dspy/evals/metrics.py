@@ -219,3 +219,14 @@ def evaluate_prediction(row: DatasetRow, prediction: PredictionResult) -> EvalRe
         weighted_score=w_score,
         notes=notes,
     )
+
+
+from src.tamitor_dspy.evals.metrics import evaluate_prediction
+
+
+def weighted_metric(example, prediction, trace=None) -> float:
+    result = evaluate_prediction(
+        row=example._row,
+        prediction=prediction.result,
+    )
+    return result.weighted_score
