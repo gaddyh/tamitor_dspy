@@ -32,6 +32,8 @@ def print_failures(eval_results) -> None:
     table.add_column("ID", style="bold")
     table.add_column("Score", justify="right")
     table.add_column("Duration", justify="right")
+    table.add_column("Simple", justify="right")
+    table.add_column("Weighted", justify="right")
     table.add_column("Failure Type")
     table.add_column("Notes")
 
@@ -62,6 +64,8 @@ def print_failures(eval_results) -> None:
             r.id,
             f"{r.score:.3f}",
             duration,
+            f"{r.score:.3f}",
+            f"{r.weighted_score:.3f}",
             ", ".join(failure_types),
             "\n".join(r.notes) if r.notes else "-",
         )

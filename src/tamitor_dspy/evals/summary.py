@@ -36,15 +36,18 @@ def print_summary(eval_results) -> None:
         if r.trace is not None
     ]
 
-    scores = [r.score for r in eval_results]
-
     table = Table(title="Dataset Evaluation Summary")
 
     table.add_column("Metric", style="bold")
     table.add_column("Value", justify="right")
 
     table.add_row("Rows", str(len(eval_results)))
-    table.add_row("Avg Score", f"{mean(scores):.3f}")
+
+    table.add_row("Avg Simple Score", f"{mean(r.score for r in eval_results):.3f}")
+    table.add_row("Avg Weighted Score", f"{mean(r.weighted_score for r in eval_results):.3f}")
+    table.add_row("Readiness Accuracy", f"{rate(eval_results, 'readiness_match'):.3f}")
+    table.add_row("Premature Action Rate", f"{rate(eval_results, 'premature_action'):.3f}")
+    table.add_row("Unnecessary Clarification Rate", f"{rate(eval_results, 'unnecessary_clarification'):.3f}")
 
     table.add_row("Behavior Accuracy", f"{rate(eval_results, 'behavior_match'):.3f}")
     table.add_row("Tool Accuracy", f"{rate(eval_results, 'tool_match'):.3f}")
