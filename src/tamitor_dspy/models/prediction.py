@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from .base import Behavior, ToolResult
+from src.tamitor_dspy.models.base import Behavior, ToolCall
 
 class PredictionResult(BaseModel):
     behavior: Behavior
 
-    tool_result: ToolResult | None = None
+    tool_result: ToolCall | None = None
 
     message: str = Field(
         default="",

@@ -2,7 +2,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from src.tamitor_dspy.models.labeled import DatasetRow
-from src.tamitor_dspy.models.prediction import PredictionTrace
+from src.tamitor_dspy.models.prediction import PredictionResult, PredictionTrace
+from src.tamitor_dspy.evals.utils import normalize_arg
 
 
 class EvalResult(BaseModel):
@@ -21,27 +22,28 @@ class EvalResult(BaseModel):
     trace: PredictionTrace | None = None
 
 
-def evaluate_prediction(row: DatasetRow, prediction) -> EvalResult:
+def evaluate_prediction(row: DatasetRow, prediction:PredictionResult) -> EvalResult:
     notes: list[str] = []
 
-    behavior_match = prediction.result.behavior == row.expected_behavior
+    behavior_match = prediction.behavior == row.expected_behavior
 
     predicted_tool = None
     predicted_args: dict[str, Any] = {}
 
-    if prediction.result.tool_result is not None:
-        predicted_tool = prediction.result.tool_result.tool_name
-        predicted_args = prediction.result.tool_result.args or {}
+    if prediction.tool_result is not None:
+        predicted_tool = prediction.tool_result.tool_name
+        predicted_args = prediction.tool_result.args or {}
 
     tool_match = predicted_tool == row.expected_tool
 
     expected_args = row.expected_args or {}
     args_match = all(
-        predicted_args.get(k) == v
-        for k, v in expected_args.items()
+        normalize_arg(k, predicted_args.get(k), row.input.context)
+        == normalize_arg(k, expected_value, row.input.context)
+        for k, expected_value in expected_args.items()
     )
 
-    missing_fields_match = set(prediction.result.missing_fields or []) == set(
+    missing_fields_match = set(prediction.missing_fields or []) == set(
         row.expected_missing_fields or []
     )
 
@@ -54,7 +56,7 @@ def evaluate_prediction(row: DatasetRow, prediction) -> EvalResult:
 
     if not behavior_match:
         notes.append(
-            f"behavior mismatch: expected={row.expected_behavior}, got={prediction.result.behavior}"
+            f"behavior mismatch: expected={row.expected_behavior}, got={prediction.behavior}"
         )
 
     if not tool_match:
@@ -69,7 +71,7 @@ def evaluate_prediction(row: DatasetRow, prediction) -> EvalResult:
 
     if not missing_fields_match:
         notes.append(
-            f"missing fields mismatch: expected={row.expected_missing_fields}, got={prediction.result.missing_fields}"
+            f"missing fields mismatch: expected={row.expected_missing_fields}, got={prediction.missing_fields}"
         )
 
     if forbidden_tool_used:

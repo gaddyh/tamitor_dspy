@@ -8,7 +8,7 @@ from time import perf_counter
 
 import dspy
 
-from src.tamitor_dspy.agents.signatures import TamiTorTurnDecision
+from src.tamitor_dspy.agents.signatures import TamiTorPredict, TamiTorTurnDecision
 from src.tamitor_dspy.models.labeled import DatasetRow
 from src.tamitor_dspy.evals.metrics import evaluate_prediction
 from src.tamitor_dspy.models.prediction import PredictionTrace
@@ -36,7 +36,7 @@ def load_jsonl(path: Path) -> list[DatasetRow]:
 def run_one(row: DatasetRow, predict: dspy.Predict):
     started_at = datetime.now(timezone.utc)
     t0 = perf_counter()
-
+    print(row.input.model_dump_json(indent=2))
     prediction = predict(turn=row.input)
 
     duration_ms = (perf_counter() - t0) * 1000
@@ -81,7 +81,7 @@ def main():
     )
     parser.add_argument(
         "--model",
-        default="openai/gpt-5-mini",
+        default="openai/gpt-5.4-mini",
     )
     parser.add_argument(
         "--out",
@@ -105,10 +105,11 @@ def main():
 
     args = parser.parse_args()
 
-    lm = dspy.LM(args.model)
+    lm = dspy.LM(args.model, cache=False)
+    print(lm.model)
     dspy.configure(lm=lm)
 
-    predict = dspy.Predict(TamiTorTurnDecision)
+    predict = TamiTorPredict()
 
     rows = load_jsonl(args.dataset)
 
@@ -121,6 +122,9 @@ def main():
     eval_results = []
 
     with args.out.open("w", encoding="utf-8") as f:
+        #cold start
+        _, _ = run_one(rows[0], predict)
+
         for i, row in enumerate(rows, start=1):
             prediction, eval_result = run_one(row, predict)
             eval_results.append(eval_result)

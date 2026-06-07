@@ -16,6 +16,11 @@ class Message(BaseModel):
     content: str
 
 
+class ToolCall(BaseModel):
+    tool_name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
 class ToolResult(BaseModel):
     tool_name: str
     args: dict[str, Any] = Field(default_factory=dict)
@@ -27,5 +32,4 @@ AVAILABLE_TOOLS = [
             "reschedule_appointment",
             "cancel_appointment",
             "answer_faq",
-            "handoff_to_human",
         ]
