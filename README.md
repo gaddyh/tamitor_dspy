@@ -153,6 +153,28 @@ The dataset intentionally separates:
 
 ---
 
+# Why Turn-Level Evaluation?
+
+Many agent benchmarks evaluate only the final outcome of a conversation.
+
+This project evaluates individual decision points.
+
+The goal is to understand why an agent failed rather than simply whether it failed.
+
+A turn-level benchmark makes it possible to measure:
+
+* Intent understanding
+* Argument extraction
+* Missing-field detection
+* Readiness decisions
+* Safety violations
+
+This allows failures to be localized and optimized independently.
+
+The benchmark therefore focuses on behavioral correctness at each step rather than only end-to-end task success.
+
+---
+
 # Metrics
 
 The project evaluates more than simple accuracy.
@@ -180,8 +202,6 @@ The project evaluates more than simple accuracy.
 # Weighted Scoring
 
 Not all mistakes are equally harmful.
-
-Example:
 
 ### Mild Failure
 
@@ -223,7 +243,19 @@ Weighted scoring penalizes unsafe actions significantly more than extraction mis
 
 # First Real Failure Mode
 
-The first benchmark revealed an important behavioral tension:
+The benchmark revealed a recurring failure pattern:
+
+```text
+The model acted before it was ready.
+```
+
+Examples included:
+
+* Rescheduling without a time
+* Rescheduling without a date
+* Answering a FAQ without a topic
+
+We refer to this behavioral tension as:
 
 ```text
 Act
@@ -231,100 +263,74 @@ vs
 Clarify
 ```
 
-Some models prefer to act before collecting all required information.
-
-Examples:
-
-* Reschedule without time
-* Reschedule without date
-* FAQ without a clear topic
-
-This became the first measurable failure mode in the project.
-
 ---
 
-# Baseline Results
+# From Failure to Metric
 
-Model:
+An experienced engineer might predict that a scheduling agent will struggle with deciding when to act and when to ask for more information.
+
+However, the goal of this project is not to rely on intuition.
+
+The goal is to verify behavioral hypotheses through evaluation.
+
+The initial assumption was that tool selection or argument extraction would be the primary sources of error.
+
+The first benchmark revealed something different.
+
+The model generally:
+
+* Selected the correct tool
+* Extracted arguments correctly
+* Understood the user's intent
+
+Yet it still failed.
+
+Failure analysis showed that many errors shared a common pattern:
 
 ```text
-openai/gpt-5.4-mini
+The model acted before it was ready.
 ```
 
-Development Set:
+This led to a new hypothesis:
 
 ```text
-Rows: 15
+The dominant challenge is not tool selection.
+
+The dominant challenge is readiness.
 ```
 
-Results:
+More specifically:
 
-| Metric                | Score |
-| --------------------- | ----: |
-| Avg Weighted Score    | 0.779 |
-| Readiness Accuracy    | 0.800 |
-| Premature Action Rate | 0.200 |
-| Args Accuracy         | 1.000 |
+```text
+Act
+vs
+Clarify
+```
 
-Key finding:
+At this point the project shifted from measuring correctness to measuring readiness.
 
-The model extracted arguments correctly but often acted before all required information was available.
+New metrics were introduced:
+
+* Readiness Accuracy
+* Premature Action Rate
+* Forbidden Tool Rate
+* Forbidden Argument Rate
+
+A weighted score was then created to reflect business risk.
+
+The weighted score intentionally penalizes unsafe actions more heavily than extraction mistakes.
+
+In effect, the metric encodes the following preference:
+
+> Asking one additional clarification question is preferable to executing one unsafe action.
+
+This was the first example of a behavioral hypothesis being transformed into a measurable optimization target.
+
+Rather than optimizing prompts directly, the project first identified a failure mode, translated it into metrics, and then optimized against those metrics.
 
 ---
 
 # Optimization Results
-
-The optimization phase did not begin by changing prompts or searching for better instructions.
-
-Instead, it began with failure analysis.
-
-## Discovering a Behavioral Tension
-
-Initial evaluation revealed that the dominant failure mode was not intent classification and not argument extraction.
-
-In most failing examples, the model correctly understood:
-
-* Which tool should eventually be used
-* Which arguments were already known
-* What the user was trying to accomplish
-
-However, the model often executed the tool before collecting all required information.
-
-For example:
-
-Expected:
-
-```text
-Behavior: clarify
-Missing: time
-```
-
-Predicted:
-
-```text
-Behavior: tool_call
-Tool: reschedule_appointment
-```
-
-The model knew the correct tool, but acted before it was ready.
-
-This revealed a deeper behavioral tension:
-
-```text
-Act
-vs
-Clarify
-```
-
-or more generally:
-
-```text
-Execution
-vs
-Information Gathering
-```
-
----
 
 ## Understanding the Tension
 
@@ -372,21 +378,7 @@ The challenge is finding the correct balance.
 
 The original metric treated all mistakes equally.
 
-For example:
-
-```text
-Missing field mismatch
-```
-
-and
-
-```text
-Premature tool execution
-```
-
-received similar penalties.
-
-Failure analysis showed that these errors have very different business consequences.
+Failure analysis showed that different mistakes carry very different business risks.
 
 A clarification mistake is usually recoverable.
 
@@ -403,37 +395,7 @@ A weighted scoring system was introduced.
 
 ---
 
-## Weighted Scoring
-
-The weighted metric intentionally penalizes unsafe actions more heavily than extraction mistakes.
-
-The goal was not to maximize tool usage.
-
-The goal was to encourage safe readiness decisions.
-
-Conceptually:
-
-```text
-Unsafe Action
-    ↓
-Large Penalty
-
-Clarification
-    ↓
-Small Penalty
-```
-
-The weighted score therefore became a formal representation of the behavioral tension identified during failure analysis.
-
-In practice, the metric communicates the following preference to the optimizer:
-
-> Asking one additional clarification question is preferable to executing an unsafe action.
-
----
-
 ## Optimization Experiments
-
-Several DSPy optimization strategies were evaluated.
 
 | Strategy         | Score |
 | ---------------- | ----: |
@@ -448,13 +410,37 @@ The largest gains came from selecting behaviorally similar demonstrations throug
 
 ---
 
+## What the Optimizer Taught Us
+
+An unexpected finding emerged during the optimization experiments.
+
+KNNFewShot consistently produced the strongest results.
+
+This is interesting because KNNFewShot performs almost no instruction engineering.
+
+Its primary contribution is selecting behaviorally similar examples.
+
+This suggests that the primary bottleneck in the current system is not instruction quality.
+
+Instead, the missing information appears to be contained in the examples themselves.
+
+In other words:
+
+* The model already understands scheduling.
+* The model already understands tools.
+* The model already understands English.
+
+What it does not fully understand is how TamiTor defines readiness.
+
+The optimizer therefore improved performance primarily by exposing the model to better demonstrations of the desired behavior rather than by generating better instructions.
+
+This observation reinforced an important EDD principle:
+
+> When failures are caused by unclear behavior boundaries, improving the dataset is often more valuable than improving the prompt.
+
+---
+
 ## What Improved
-
-The primary improvements were not in argument extraction.
-
-Argument extraction was already near perfect.
-
-Instead, optimization improved the model's ability to determine whether enough information had been gathered before acting.
 
 | Metric                | Baseline | KNNFewShot |
 | --------------------- | -------: | ---------: |
@@ -463,13 +449,11 @@ Instead, optimization improved the model's ability to determine whether enough i
 | Premature Action Rate |    0.200 |      0.133 |
 | Args Accuracy         |    1.000 |      1.000 |
 
-This indicates that the optimization primarily improved readiness decisions rather than extraction quality.
+Optimization primarily improved readiness decisions rather than extraction quality.
 
 ---
 
 ## Key Insight
-
-The most important discovery of the project so far is that:
 
 ```text
 Tool Selection
@@ -486,9 +470,6 @@ Act
 vs
 Clarify
 ```
-
-The evaluation framework, weighted metric, and optimization process were all developed to measure and improve this specific cognitive tension.
-
 
 ---
 
@@ -512,7 +493,7 @@ This suggests that readiness gating is a major source of error for tool-calling 
 
 # Current Status
 
-Completed:
+## Completed
 
 * Dataset schema
 * Turn-level evaluator
@@ -522,14 +503,14 @@ Completed:
 * DSPy optimization experiments
 * KNNFewShot benchmark
 
-In Progress:
+## In Progress
 
 * Expand dataset coverage
 * Build train/dev/test split
 * Increase scenario diversity
 * Add multi-turn examples
 
-Planned:
+## Planned
 
 * MIPROv2 optimization
 * Larger benchmark datasets
@@ -542,4 +523,13 @@ Planned:
 
 This project is not about building another chatbot.
 
-It is an exploration of how to evaluate, understand, and improve agent behavior using measurable feedback rather than manual prompt engineering.
+It is an exploration of how to evaluate, understand, and improve agent behavior through datasets, metrics, failure analysis, and measurable optimization.
+
+The central lesson so far is simple:
+
+```text
+Find the failure.
+Turn it into a metric.
+Optimize against the metric.
+Measure again.
+```

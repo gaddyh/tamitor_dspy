@@ -106,7 +106,14 @@ def main():
         ex._row = row
         dev_examples.append(ex)
 
-    evaluator = dspy.Evaluate(devset=dev_examples, metric=weighted_metric,
+    test_rows = load_jsonl(Path("data/splits/test.jsonl"))
+    test_examples = []
+    for row in test_rows:
+        ex = dspy.Example(turn=row.input).with_inputs("turn")
+        ex._row = row
+        test_examples.append(ex)
+
+    evaluator = dspy.Evaluate(devset=test_examples, metric=weighted_metric,
                                 num_threads=2, display_progress=False)
 
    
@@ -151,6 +158,22 @@ def main():
 
     print_summary(eval_results)
     print_failures(eval_results)
+
+    optimizer_light = dspy.MIPROv2(
+        metric=weighted_metric,
+        # prompt_model: stronger LM proposes instructions (default: global LM)
+        # task_model:   student LM runs the program (default: global LM)
+        auto="light",
+        num_threads=2,
+    )
+
+    compiled_light = optimizer_light.compile(
+        predict,
+        trainset=train_examples,
+        valset=dev_examples,
+    )
+    score_light = evaluator(compiled_light)
+    print(f"\nMIPROv2 (light): {score_light.score:.1f}%  (Δ {score_light.score - baseline_score.score:+.1f}%)")
 
 if __name__ == "__main__":
     main()
